@@ -1,0 +1,51 @@
+# CODEOWNERS - Define who must review/approve changes
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# =============================================================================
+# DEFAULT OWNERS
+# =============================================================================
+# By default, dev team can change everything
+* @ciscocpa/dev-team
+
+# =============================================================================
+# BASE POLICIES - SECURITY TEAM ONLY
+# =============================================================================
+# These are fundamental security controls that should never be modified
+# without security team approval. Includes default-deny, DNS, monitoring.
+/policies/00-base/ @ciscocpa/security-team
+/policies/00-base/** @ciscocpa/security-team
+
+# =============================================================================
+# EXTERNAL POLICIES - REQUIRES SECURITY APPROVAL
+# =============================================================================
+# Any connections to other namespaces or the internet require security review.
+# This includes egress to external APIs, cross-namespace communication, etc.
+/policies/20-external/ @ciscocpa/security-team
+/policies/20-external/** @ciscocpa/security-team
+
+# =============================================================================
+# INTERNAL POLICIES - DEV TEAM OWNS
+# =============================================================================
+# Developers have full control over policies for communication within
+# their namespace. These can be modified freely.
+/policies/10-internal/ @ciscocpa/dev-team
+/policies/10-internal/** @ciscocpa/dev-team
+
+# =============================================================================
+# APPLICATION MANIFESTS - DEV TEAM OWNS
+# =============================================================================
+# Developers have full control over their application deployments,
+# services, configmaps, etc.
+/apps/ @ciscocpa/dev-team
+/apps/** @ciscocpa/dev-team
+
+# =============================================================================
+# WORKFLOW CHANGES - REQUIRE BOTH TEAMS
+# =============================================================================
+# Changes to GitHub Actions workflows affect security controls,
+# so both teams should review
+/.github/workflows/ @ciscocpa/dev-team @ciscocpa/security-team
+/.github/workflows/** @ciscocpa/dev-team @ciscocpa/security-team
+
+# This file itself requires security team approval
+/.github/CODEOWNERS @ciscocpa/security-team

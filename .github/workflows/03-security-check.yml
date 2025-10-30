@@ -1,0 +1,158 @@
+name: Security Review Required
+
+on:
+  pull_request:
+    paths:
+      - 'policies/00-base/**'
+      - 'policies/20-external/**'
+      - '.github/workflows/03-security-check.yml'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  require-security-approval:
+    name: Require Security Team Approval
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Analyze changes
+        id: analyze
+        run: |
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD 2>/dev/null || git diff --name-only HEAD~1 HEAD)
+
+          echo "## Changed Files" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$CHANGED_FILES" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Categorize changes
+          if echo "$CHANGED_FILES" | grep -q "^policies/00-base/"; then
+            echo "change_type=base" >> $GITHUB_OUTPUT
+            echo "**Type:** Base Policy Changes (🔒 Critical)" >> $GITHUB_STEP_SUMMARY
+          elif echo "$CHANGED_FILES" | grep -q "^policies/20-external/"; then
+            echo "change_type=external" >> $GITHUB_OUTPUT
+            echo "**Type:** External Policy Changes (🌐 Requires Review)" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Check for security team approval
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+
+            const reviews = await github.rest.pulls.listReviews({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+
+            // List of security team members who can approve
+            // TODO: Update with actual GitHub usernames
+            const securityTeam = ['pantunez']; // Update this list
+
+            // Check if security team has approved
+            const securityApproval = reviews.data.find(review =>
+              securityTeam.includes(review.user.login) &&
+              review.state === 'APPROVED'
+            );
+
+            const changeType = '${{ steps.analyze.outputs.change_type }}';
+
+            if (!securityApproval) {
+              // Determine the message based on change type
+              let message = '';
+              if (changeType === 'base') {
+                message = `## 🔒 Base Policy Changes - Security Team Only
+
+This PR modifies **base network policies** which are fundamental security controls.
+
+### What are Base Policies?
+- **Default deny-all rules** - Establish zero-trust baseline
+- **DNS allow rules** - Enable service discovery
+- **Monitoring access** - Allow observability tools
+
+### Why Security Team Only?
+Base policies affect the entire namespace's security posture. Any changes could:
+- Bypass security controls
+- Create security vulnerabilities
+- Impact compliance requirements
+
+### What You Need to Do
+1. ❌ **Stop** - Revert changes to base policies
+2. 📞 **Contact** - Reach out to security team (@ciscocpa/security-team)
+3. 📝 **Document** - Explain why base policy changes are needed
+4. ⏳ **Wait** - Security team will review and make changes if appropriate
+
+---
+
+**This PR will not merge until reverted or security team approves.**`;
+              } else {
+                message = `## 🌐 External Policy Changes - Security Review Required
+
+This PR proposes **external network connections** that require security team approval.
+
+### What's Being Proposed?
+External connections to:
+${pr.data.body || '_(No description provided - please add details)_'}
+
+### Why Security Review?
+External connections:
+- Expose your application to internet threats
+- May violate compliance requirements
+- Need security controls (TLS, authentication, etc.)
+- Increase attack surface
+
+### Information Needed
+Please provide:
+- **Destination**: Which service/domain?
+- **Port & Protocol**: What port and protocol (TCP/UDP/HTTP)?
+- **Justification**: Why is this connection needed?
+- **Security considerations**: Any risks or concerns?
+- **Testing plan**: How will you verify it works securely?
+
+### Next Steps
+1. ✅ **Complete the description** above
+2. 🏷️ **Use the template** (see PR templates)
+3. ⏳ **Wait for review** - Security team will be notified
+4. 💬 **Respond to questions** from security team
+5. ✅ **Get approval** then merge
+
+---
+
+cc: @ciscocpa/security-team - Please review this external policy request.`;
+              }
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: message
+              });
+
+              core.setFailed('🔒 Security team approval required for this PR');
+            } else {
+              core.info(`✅ Security approval granted by ${securityApproval.user.login}`);
+
+              // Add approval comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: `## ✅ Security Team Approval Granted
+
+**Approved by:** @${securityApproval.user.login}
+
+This PR has been reviewed and approved by the security team. It can now be merged.`
+              });
+            }

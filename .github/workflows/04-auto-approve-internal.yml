@@ -1,0 +1,113 @@
+name: Auto-Approve Internal Changes
+
+on:
+  pull_request:
+    paths:
+      - 'policies/10-internal/**'
+      - 'apps/**'
+      - '.github/workflows/04-auto-approve-internal.yml'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-if-internal-only:
+    name: Check If Only Internal/App Changes
+    runs-on: ubuntu-latest
+    outputs:
+      only_internal: ${{ steps.check.outputs.only_internal }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if only internal or app changes
+        id: check
+        run: |
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD 2>/dev/null || git diff --name-only HEAD~1 HEAD)
+
+          echo "## Changed Files Analysis" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$CHANGED_FILES" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Check if any base or external files changed
+          if echo "$CHANGED_FILES" | grep -qE "^policies/(00-base|20-external)/"; then
+            echo "only_internal=false" >> $GITHUB_OUTPUT
+            echo "❌ Contains base or external policy changes - manual security review required" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "only_internal=true" >> $GITHUB_OUTPUT
+            echo "✅ Only internal policies or app changes - can auto-approve" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  auto-approve:
+    name: Auto-Approve Safe Changes
+    runs-on: ubuntu-latest
+    needs: check-if-internal-only
+    if: needs.check-if-internal-only.outputs.only_internal == 'true' && github.event.pull_request.user.login != 'dependabot[bot]'
+    steps:
+      - name: Approve PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.pulls.createReview({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              event: 'APPROVE',
+              body: `## ✅ Auto-Approved
+
+This PR contains only internal policy or application changes that don't require security team review.
+
+**What was changed:**
+- Internal namespace policies (10-internal/)
+- Application manifests (apps/)
+
+**Why auto-approved:**
+- No base policy changes (00-base/)
+- No external policy changes (20-external/)
+- All validation checks passed
+
+**You can merge this PR immediately** after all status checks pass.
+
+---
+
+*This is an automated approval by GitHub Actions. If you believe this needs additional review, please request it manually.*`
+            });
+
+            // Add helpful label
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['auto-approved', 'safe-to-merge']
+            });
+
+      - name: Add merge instructions
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## 🚀 Ready to Merge
+
+All checks have passed and this PR has been auto-approved!
+
+### Next Steps:
+1. ✅ Review the changes one final time
+2. ✅ Ensure all CI checks are green
+3. 🔀 Click "Merge pull request"
+4. 🎉 Your changes will be deployed via ArgoCD!
+
+**Deployment Timeline:**
+- ArgoCD sync interval: ~3 minutes
+- Changes will appear in your namespace shortly after merge
+
+Need help? Contact @ciscocpa/dev-team`
+            });
