@@ -28,19 +28,20 @@ demo-gitops-network-policy/
 │   ├── bootstrap/
 │   │   └── root-app-netpol-demo.yaml  # Root application (deploy manually once)
 │   └── applications/
-│       ├── demo-apps.yaml             # Child app for apps/
-│       └── demo-policies.yaml         # Child app for policies/
-├── apps/                               # Application manifests (add your app YAMLs here)
-└── policies/
-    ├── 00-base/                        # 🔒 PROTECTED - Security team only
-    │                                   #    - Default deny-all
-    │                                   #    - DNS resolution
-    │                                   #    - Prometheus metrics
-    ├── 10-internal/                    # ✅ Dev team can modify
-    │                                   #    - Internal service communication
-    │                                   #    - Service-to-service policies
-    └── 20-external/                    # ⚠️ Requires security approval
-                                        #    - External API connections
+│       ├── tenant-a.yaml              # Tenant A application
+│       └── tenant-b.yaml              # Tenant B application
+├── tenant-a/                           # Tenant A namespace (isolated)
+│   ├── apps/                          # Tenant A applications
+│   └── policies/                      # Tenant A network policies
+│       ├── 00-base/                   # 🔒 Security team only
+│       ├── 10-internal/               # ✅ Dev team can modify
+│       └── 20-external/               # ⚠️ Requires security approval
+└── tenant-b/                           # Tenant B namespace (isolated)
+    ├── apps/                          # Tenant B applications
+    └── policies/                      # Tenant B network policies
+        ├── 00-base/                   # 🔒 Security team only
+        ├── 10-internal/               # ✅ Dev team can modify
+        └── 20-external/               # ⚠️ Requires security approval
 ```
 
 ## 🔐 Security Model
@@ -49,96 +50,98 @@ demo-gitops-network-policy/
 
 | Directory | Owner | Approval Required | Auto-Merge |
 |-----------|-------|-------------------|------------|
-| **`00-base/`** | Security Team | Security Team | ❌ Never |
-| **`10-internal/`** | Dev Team | None | ✅ Auto-approved |
-| **`20-external/`** | Dev Team proposes | Security Team | ❌ Manual |
-| **`apps/`** | Dev Team | None | ✅ Auto-approved |
+| **`tenant-*/policies/00-base/`** | Security Team | Security Team | ❌ Never |
+| **`tenant-*/policies/10-internal/`** | Dev Team | None | ✅ Auto-approved |
+| **`tenant-*/policies/20-external/`** | Dev Team proposes | Security Team | ❌ Manual |
+| **`tenant-*/apps/`** | Dev Team | None | ✅ Auto-approved |
 
 ### What Developers Can Do
 
 #### ✅ **Can Modify Freely** (Auto-approved)
-- Application deployments, services, configmaps (`apps/`)
-- Internal namespace policies (`policies/10-internal/`)
-- Service-to-service communication within namespace
+- Application deployments, services, configmaps (`tenant-*/apps/`)
+- Internal namespace policies (`tenant-*/policies/10-internal/`)
+- Service-to-service communication within tenant namespace
 - Any changes that don't affect external connectivity
 
 #### ⚠️ **Can Propose** (Requires approval)
-- External API connections (`policies/20-external/`)
+- External API connections (`tenant-*/policies/20-external/`)
 - Cross-namespace communication
 - Internet egress policies
 - Security team reviews and approves
 
 #### ❌ **Cannot Modify** (Protected)
-- Base security policies (`policies/00-base/`)
+- Base security policies (`tenant-*/policies/00-base/`)
 - Default deny-all rules
 - DNS policies
 - Monitoring policies
 
 ## 🚀 Developer Workflow
 
-### Scenario 1: Add Your Application
+### Scenario 1: Add Your Application (Tenant A)
 
 ```bash
-# 1. Create your application manifest
-cat > apps/frontend-deployment.yaml <<EOF
+# 1. Create your application manifest for Tenant A
+cat > tenant-a/apps/frontend-deployment.yaml <<EOF
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: frontend
-  namespace: demo-app
+  namespace: tenant-a
 spec:
   # ... your deployment spec
 EOF
 
 # 2. Create PR
-git checkout -b feature/add-frontend
-git add apps/
-git commit -m "Add frontend deployment"
-git push origin feature/add-frontend
+git checkout -b tenant-a/add-frontend
+git add tenant-a/apps/
+git commit -m "tenant-a: Add frontend deployment"
+git push origin tenant-a/add-frontend
 
 # 3. GitHub Actions automatically:
 #    ✅ Validates manifests
 #    ✅ Auto-approves (no security review needed)
 #    → Merge immediately!
+#    → ArgoCD deploys to tenant-a namespace
 ```
 
-### Scenario 2: Add Internal Service Communication
+### Scenario 2: Add Internal Service Communication (Tenant B)
 
 ```bash
-# 1. Create internal policy
-cat > policies/10-internal/api-to-cache.yaml <<EOF
+# 1. Create internal policy for Tenant B
+cat > tenant-b/policies/10-internal/api-to-cache.yaml <<EOF
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
   name: api-to-cache
-  namespace: demo-app
+  namespace: tenant-b
 spec:
   description: "Allow API to access Redis cache"
   # ... your policy spec
 EOF
 
 # 2. Create PR with internal policy template
-git checkout -b policy/api-cache-communication
-git add policies/10-internal/
-git commit -m "Allow API to access Redis cache"
+git checkout -b tenant-b/policy/api-cache-communication
+git add tenant-b/policies/10-internal/
+git commit -m "tenant-b: Allow API to access Redis cache"
 git push
 
 # 3. GitHub Actions:
 #    ✅ Validates policy syntax
 #    ✅ Auto-approves (internal only)
 #    → Merge after checks pass!
+#    → ArgoCD deploys to tenant-b namespace
 ```
 
-### Scenario 3: Request External Connection
+### Scenario 3: Request External Connection (Tenant A)
 
 ```bash
-# 1. Create external policy with justification
-cat > policies/20-external/api-to-stripe.yaml <<EOF
+# 1. Create external policy with justification for Tenant A
+cat > tenant-a/policies/20-external/api-to-stripe.yaml <<EOF
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
   name: api-to-stripe
-  namespace: demo-app
+  namespace: tenant-a
   annotations:
     justification: "Payment processing integration"
 spec:
@@ -147,9 +150,9 @@ spec:
 EOF
 
 # 2. Create PR using external policy template
-git checkout -b policy/stripe-integration
-git add policies/20-external/
-git commit -m "Add Stripe API connection for payments
+git checkout -b tenant-a/policy/stripe-integration
+git add tenant-a/policies/20-external/
+git commit -m "tenant-a: Add Stripe API connection for payments
 
 Destination: api.stripe.com:443
 Protocol: HTTPS
@@ -162,19 +165,20 @@ git push
 #    ⏳ Notifies security team
 #    🔒 Waits for approval
 #    → Merge after security team approves
+#    → ArgoCD deploys to tenant-a namespace
 ```
 
 ## 🤖 Automated Workflows
 
 ### 1. App Validation (`01-validate-app.yml`)
-**Triggers:** Changes to `apps/`
+**Triggers:** Changes to `tenant-*/apps/`
 - ✅ YAML syntax validation
 - ✅ Kubernetes manifest validation
 - ✅ Best practices check
 - ✅ Auto-comments on PR with results
 
 ### 2. Policy Validation (`02-validate-policies.yml`)
-**Triggers:** Changes to `policies/`
+**Triggers:** Changes to `tenant-*/policies/`
 - ✅ YAML syntax validation
 - ✅ Cilium policy structure check
 - 🛡️ Base policy protection (blocks modifications)
@@ -183,14 +187,14 @@ git push
 - ⚠️ Security anti-pattern detection
 
 ### 3. Security Check (`03-security-check.yml`)
-**Triggers:** Changes to `policies/00-base/` or `policies/20-external/`
+**Triggers:** Changes to `tenant-*/policies/00-base/` or `tenant-*/policies/20-external/`
 - 🔒 Requires security team approval
 - 💬 Auto-comments with requirements
 - 🔔 Notifies security team
 - ❌ Blocks merge until approved
 
 ### 4. Auto-Approve Internal (`04-auto-approve-internal.yml`)
-**Triggers:** Changes to `policies/10-internal/` or `apps/`
+**Triggers:** Changes to `tenant-*/policies/10-internal/` or `tenant-*/apps/`
 - ✅ Auto-approves if no base/external changes
 - 🏷️ Adds "auto-approved" label
 - 💬 Comments with merge instructions
@@ -215,16 +219,16 @@ Use when modifying internal namespace policies. Includes:
 
 ## 🎓 Examples
 
-### Example 1: Frontend → Backend Communication
+### Example 1: Frontend → Backend Communication (Tenant A)
 
-Create a policy file `policies/10-internal/frontend-to-backend.yaml`:
+Create a policy file `tenant-a/policies/10-internal/frontend-to-backend.yaml`:
 
 ```yaml
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
   name: frontend-to-backend
-  namespace: demo-app
+  namespace: tenant-a
 spec:
   description: "Allow frontend to connect to backend API"
   endpointSelector:
@@ -242,16 +246,16 @@ spec:
 
 **Action:** Developers can add/modify this freely ✅
 
-### Example 2: Backend → External API
+### Example 2: Backend → External API (Tenant B)
 
-Create a policy file `policies/20-external/backend-to-stripe.yaml`:
+Create a policy file `tenant-b/policies/20-external/backend-to-stripe.yaml`:
 
 ```yaml
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
   name: backend-to-stripe
-  namespace: demo-app
+  namespace: tenant-b
   annotations:
     justification: "Payment processing"
     approved-by: "security-team"
@@ -312,11 +316,15 @@ Root Application (argocd/bootstrap/root-app-netpol-demo.yaml)
     │
     ├── Monitors: argocd/applications/
     │
-    ├── Child App 1: demo-apps.yaml
-    │   └── Deploys: apps/ directory → demo-app namespace
+    ├── Child App 1: tenant-a.yaml
+    │   └── Deploys: tenant-a/ directory → tenant-a namespace
+    │       ├── apps/ → Applications for Tenant A
+    │       └── policies/ → Network policies for Tenant A
     │
-    └── Child App 2: demo-policies.yaml
-        └── Deploys: policies/ directory → demo-app namespace
+    └── Child App 2: tenant-b.yaml
+        └── Deploys: tenant-b/ directory → tenant-b namespace
+            ├── apps/ → Applications for Tenant B
+            └── policies/ → Network policies for Tenant B
 ```
 
 #### Initial Setup (One-time)
@@ -348,14 +356,15 @@ argocd app wait root-app-netpol-demo
 argocd app get root-app-netpol-demo
 
 # Check child applications
-argocd app list | grep demo-
+argocd app list | grep tenant-
 
 # Expected output:
-# demo-apps        Synced    Healthy   https://github.com/...
-# demo-policies    Synced    Healthy   https://github.com/...
+# tenant-a         Synced    Healthy   https://github.com/...
+# tenant-b         Synced    Healthy   https://github.com/...
 
-# Check deployed resources in demo-app namespace
-kubectl get all,ciliumnetworkpolicies -n demo-app
+# Check deployed resources in tenant namespaces
+kubectl get all,ciliumnetworkpolicies -n tenant-a
+kubectl get all,ciliumnetworkpolicies -n tenant-b
 ```
 
 #### How It Works
@@ -367,13 +376,15 @@ kubectl get all,ciliumnetworkpolicies -n demo-app
 
 2. **Child Applications** (`argocd/applications/*.yaml`)
    - Automatically created by root app
-   - `demo-apps.yaml` - Deploys all YAML in `apps/`
-   - `demo-policies.yaml` - Deploys all YAML in `policies/`
+   - `tenant-a.yaml` - Deploys all YAML in `tenant-a/` → `tenant-a` namespace
+   - `tenant-b.yaml` - Deploys all YAML in `tenant-b/` → `tenant-b` namespace
    - Auto-sync enabled with prune and self-heal
+   - Each tenant is isolated in its own namespace
 
 3. **GitOps Workflow**
-   - Merge PR → ArgoCD detects change → Auto-deploys to cluster
-   - Changes in `apps/` or `policies/` trigger automatic sync
+   - Merge PR → ArgoCD detects change → Auto-deploys to respective tenant namespace
+   - Changes in `tenant-a/` trigger sync to `tenant-a` namespace
+   - Changes in `tenant-b/` trigger sync to `tenant-b` namespace
    - Changes in `argocd/applications/` automatically update child apps
 
 #### Benefits
@@ -382,37 +393,42 @@ kubectl get all,ciliumnetworkpolicies -n demo-app
 ✅ **Automatic updates** - Child apps sync on git push
 ✅ **Self-healing** - Resources recreated if manually deleted
 ✅ **Prune old resources** - Deleted files removed from cluster
-✅ **Namespace isolation** - Apps and policies in `demo-app` namespace
+✅ **Multi-tenant isolation** - Each tenant in separate namespace
+✅ **Independent scaling** - Tenants can be managed independently
+✅ **Clear separation** - Applications and policies organized by tenant
 
 ## 🐛 Troubleshooting
 
 ### PR Not Auto-Approving
 
 **Check:**
-1. Are you only modifying `apps/` or `policies/10-internal/`?
+1. Are you only modifying `tenant-*/apps/` or `tenant-*/policies/10-internal/`?
 2. Did you accidentally change base or external policies?
 3. Are all validation checks passing?
+4. Are changes scoped to a single tenant?
 
 ### Security Check Failing
 
 **Check:**
-1. Are you modifying `policies/00-base/`? (Not allowed)
-2. Are you modifying `policies/20-external/`? (Needs approval)
+1. Are you modifying `tenant-*/policies/00-base/`? (Not allowed)
+2. Are you modifying `tenant-*/policies/20-external/`? (Needs approval)
 3. Has security team approved the PR?
+4. Verify the correct tenant namespace in policy metadata
 
 ### Policies Not Applying
 
 **Check:**
-1. Is ArgoCD syncing? (`argocd app get demo-policies`)
-2. Are policies in correct namespace (`demo-app`)?
+1. Is ArgoCD syncing? (`argocd app get tenant-a` or `argocd app get tenant-b`)
+2. Are policies in correct tenant namespace?
 3. Check Cilium status: `cilium status`
-4. Check for ArgoCD sync errors: `argocd app sync demo-policies`
+4. Check for ArgoCD sync errors: `argocd app sync tenant-a`
+5. Verify namespace matches tenant name in policy metadata
 
 ### ArgoCD Not Syncing
 
 **Check:**
 1. Is root app healthy? `argocd app get root-app-netpol-demo`
-2. Are child apps created? `argocd app list | grep demo-`
+2. Are child apps created? `argocd app list | grep tenant-`
 3. Check ArgoCD logs: `kubectl logs -n argocd -l app.kubernetes.io/name=argocd-application-controller`
 4. Verify repository access: `argocd repo list`
 
@@ -421,9 +437,9 @@ kubectl get all,ciliumnetworkpolicies -n demo-app
 # Sync root app
 argocd app sync root-app-netpol-demo
 
-# Sync child apps
-argocd app sync demo-apps
-argocd app sync demo-policies
+# Sync tenant apps
+argocd app sync tenant-a
+argocd app sync tenant-b
 ```
 
 ### ArgoCD Shows "OutOfSync"
@@ -431,8 +447,9 @@ argocd app sync demo-policies
 **Common causes:**
 1. Manual changes to cluster (use git, not kubectl!)
 2. Resource modified by another controller
-3. Check app diff: `argocd app diff demo-apps`
-4. Force sync if needed: `argocd app sync demo-apps --force`
+3. Check app diff: `argocd app diff tenant-a`
+4. Force sync if needed: `argocd app sync tenant-a --force`
+5. Verify correct tenant namespace in resource metadata
 
 ## 📚 Additional Resources
 
