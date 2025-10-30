@@ -24,6 +24,12 @@ demo-gitops-network-policy/
 │   └── PULL_REQUEST_TEMPLATE/         # PR templates
 │       ├── external-policy.md
 │       └── internal-policy.md
+├── argocd/                             # ArgoCD App-of-Apps configuration
+│   ├── bootstrap/
+│   │   └── root-app.yaml              # Root application (deploy manually once)
+│   └── applications/
+│       ├── demo-apps.yaml             # Child app for apps/
+│       └── demo-policies.yaml         # Child app for policies/
 ├── apps/                               # Application manifests (add your app YAMLs here)
 └── policies/
     ├── 00-base/                        # 🔒 PROTECTED - Security team only
@@ -295,30 +301,88 @@ In GitHub repo settings → Branches → Add rule for `main`:
 - ✅ Require review from code owners
 - ✅ Dismiss stale reviews
 
-### 4. Deploy with ArgoCD
+### 4. Deploy with ArgoCD (App-of-Apps Pattern)
 
-```yaml
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: demo-gitops-network-policy
-  namespace: argocd
-spec:
-  project: default
-  source:
-    repoURL: https://github.com/ciscocpa/demo-gitops-network-policy.git
-    targetRevision: main
-    path: .
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: demo-gitops-network-policy
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
+This repository uses the **App-of-Apps pattern** for automated deployment:
+
+#### Architecture
+
 ```
+Root Application (argocd/bootstrap/root-app.yaml)
+    │
+    ├── Monitors: argocd/applications/
+    │
+    ├── Child App 1: demo-apps.yaml
+    │   └── Deploys: apps/ directory → demo-app namespace
+    │
+    └── Child App 2: demo-policies.yaml
+        └── Deploys: policies/ directory → demo-app namespace
+```
+
+#### Initial Setup (One-time)
+
+Deploy the root application to your ArgoCD instance:
+
+```bash
+# Method 1: Using kubectl
+kubectl apply -f argocd/bootstrap/root-app.yaml
+
+# Method 2: Using ArgoCD CLI
+argocd app create root-app \
+  --repo https://github.com/ciscocpa/demo-gitops-network-policy.git \
+  --path argocd/applications \
+  --dest-server https://kubernetes.default.svc \
+  --dest-namespace argocd \
+  --sync-policy automated \
+  --auto-prune \
+  --self-heal
+
+# Wait for root app to sync
+argocd app wait root-app
+```
+
+#### Verify Deployment
+
+```bash
+# Check root application status
+argocd app get root-app
+
+# Check child applications
+argocd app list | grep demo-
+
+# Expected output:
+# demo-apps        Synced    Healthy   https://github.com/...
+# demo-policies    Synced    Healthy   https://github.com/...
+
+# Check deployed resources in demo-app namespace
+kubectl get all,ciliumnetworkpolicies -n demo-app
+```
+
+#### How It Works
+
+1. **Root Application** (`argocd/bootstrap/root-app.yaml`)
+   - Deployed manually once after cluster setup
+   - Watches `argocd/applications/` directory
+   - Automatically creates/updates child applications
+
+2. **Child Applications** (`argocd/applications/*.yaml`)
+   - Automatically created by root app
+   - `demo-apps.yaml` - Deploys all YAML in `apps/`
+   - `demo-policies.yaml` - Deploys all YAML in `policies/`
+   - Auto-sync enabled with prune and self-heal
+
+3. **GitOps Workflow**
+   - Merge PR → ArgoCD detects change → Auto-deploys to cluster
+   - Changes in `apps/` or `policies/` trigger automatic sync
+   - Changes in `argocd/applications/` automatically update child apps
+
+#### Benefits
+
+✅ **Zero-touch deployment** - Root app manages everything
+✅ **Automatic updates** - Child apps sync on git push
+✅ **Self-healing** - Resources recreated if manually deleted
+✅ **Prune old resources** - Deleted files removed from cluster
+✅ **Namespace isolation** - Apps and policies in `demo-app` namespace
 
 ## 🐛 Troubleshooting
 
@@ -339,9 +403,36 @@ spec:
 ### Policies Not Applying
 
 **Check:**
-1. Is ArgoCD syncing? (`argocd app get demo-gitops-network-policy`)
-2. Are policies in correct namespace?
+1. Is ArgoCD syncing? (`argocd app get demo-policies`)
+2. Are policies in correct namespace (`demo-app`)?
 3. Check Cilium status: `cilium status`
+4. Check for ArgoCD sync errors: `argocd app sync demo-policies`
+
+### ArgoCD Not Syncing
+
+**Check:**
+1. Is root app healthy? `argocd app get root-app`
+2. Are child apps created? `argocd app list | grep demo-`
+3. Check ArgoCD logs: `kubectl logs -n argocd -l app.kubernetes.io/name=argocd-application-controller`
+4. Verify repository access: `argocd repo list`
+
+**Manual sync if needed:**
+```bash
+# Sync root app
+argocd app sync root-app
+
+# Sync child apps
+argocd app sync demo-apps
+argocd app sync demo-policies
+```
+
+### ArgoCD Shows "OutOfSync"
+
+**Common causes:**
+1. Manual changes to cluster (use git, not kubectl!)
+2. Resource modified by another controller
+3. Check app diff: `argocd app diff demo-apps`
+4. Force sync if needed: `argocd app sync demo-apps --force`
 
 ## 📚 Additional Resources
 
