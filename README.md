@@ -26,7 +26,7 @@ demo-gitops-network-policy/
 │       └── internal-policy.md
 ├── argocd/                             # ArgoCD App-of-Apps configuration
 │   ├── bootstrap/
-│   │   └── root-app.yaml              # Root application (deploy manually once)
+│   │   └── root-app-netpol-demo.yaml  # Root application (deploy manually once)
 │   └── applications/
 │       ├── demo-apps.yaml             # Child app for apps/
 │       └── demo-policies.yaml         # Child app for policies/
@@ -308,7 +308,7 @@ This repository uses the **App-of-Apps pattern** for automated deployment:
 #### Architecture
 
 ```
-Root Application (argocd/bootstrap/root-app.yaml)
+Root Application (argocd/bootstrap/root-app-netpol-demo.yaml)
     │
     ├── Monitors: argocd/applications/
     │
@@ -325,10 +325,10 @@ Deploy the root application to your ArgoCD instance:
 
 ```bash
 # Method 1: Using kubectl
-kubectl apply -f argocd/bootstrap/root-app.yaml
+kubectl apply -f argocd/bootstrap/root-app-netpol-demo.yaml
 
 # Method 2: Using ArgoCD CLI
-argocd app create root-app \
+argocd app create root-app-netpol-demo \
   --repo https://github.com/ciscocpa/demo-gitops-network-policy.git \
   --path argocd/applications \
   --dest-server https://kubernetes.default.svc \
@@ -338,14 +338,14 @@ argocd app create root-app \
   --self-heal
 
 # Wait for root app to sync
-argocd app wait root-app
+argocd app wait root-app-netpol-demo
 ```
 
 #### Verify Deployment
 
 ```bash
 # Check root application status
-argocd app get root-app
+argocd app get root-app-netpol-demo
 
 # Check child applications
 argocd app list | grep demo-
@@ -360,7 +360,7 @@ kubectl get all,ciliumnetworkpolicies -n demo-app
 
 #### How It Works
 
-1. **Root Application** (`argocd/bootstrap/root-app.yaml`)
+1. **Root Application** (`argocd/bootstrap/root-app-netpol-demo.yaml`)
    - Deployed manually once after cluster setup
    - Watches `argocd/applications/` directory
    - Automatically creates/updates child applications
@@ -411,7 +411,7 @@ kubectl get all,ciliumnetworkpolicies -n demo-app
 ### ArgoCD Not Syncing
 
 **Check:**
-1. Is root app healthy? `argocd app get root-app`
+1. Is root app healthy? `argocd app get root-app-netpol-demo`
 2. Are child apps created? `argocd app list | grep demo-`
 3. Check ArgoCD logs: `kubectl logs -n argocd -l app.kubernetes.io/name=argocd-application-controller`
 4. Verify repository access: `argocd repo list`
@@ -419,7 +419,7 @@ kubectl get all,ciliumnetworkpolicies -n demo-app
 **Manual sync if needed:**
 ```bash
 # Sync root app
-argocd app sync root-app
+argocd app sync root-app-netpol-demo
 
 # Sync child apps
 argocd app sync demo-apps
