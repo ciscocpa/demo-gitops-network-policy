@@ -8,36 +8,58 @@
 * @ciscocpa/dev-team
 
 # =============================================================================
-# BASE POLICIES - SECURITY TEAM ONLY
+# TENANT-A - BASE POLICIES - SECURITY TEAM ONLY
 # =============================================================================
-# These are fundamental security controls that should never be modified
-# without security team approval. Includes default-deny, DNS, monitoring.
-/policies/00-base/ @ciscocpa/security-team
-/policies/00-base/** @ciscocpa/security-team
+/tenant-a/policies/00-base/ @ciscocpa/security-team
+/tenant-a/policies/00-base/** @ciscocpa/security-team
 
 # =============================================================================
-# EXTERNAL POLICIES - REQUIRES SECURITY APPROVAL
+# TENANT-A - EXTERNAL POLICIES - REQUIRES SECURITY APPROVAL
 # =============================================================================
-# Any connections to other namespaces or the internet require security review.
-# This includes egress to external APIs, cross-namespace communication, etc.
-/policies/20-external/ @ciscocpa/security-team
-/policies/20-external/** @ciscocpa/security-team
+/tenant-a/policies/20-external/ @ciscocpa/security-team
+/tenant-a/policies/20-external/** @ciscocpa/security-team
 
 # =============================================================================
-# INTERNAL POLICIES - DEV TEAM OWNS
+# TENANT-A - INTERNAL POLICIES - DEV TEAM OWNS
 # =============================================================================
-# Developers have full control over policies for communication within
-# their namespace. These can be modified freely.
-/policies/10-internal/ @ciscocpa/dev-team
-/policies/10-internal/** @ciscocpa/dev-team
+/tenant-a/policies/10-internal/ @ciscocpa/dev-team
+/tenant-a/policies/10-internal/** @ciscocpa/dev-team
 
 # =============================================================================
-# APPLICATION MANIFESTS - DEV TEAM OWNS
+# TENANT-A - APPLICATION MANIFESTS - DEV TEAM OWNS
 # =============================================================================
-# Developers have full control over their application deployments,
-# services, configmaps, etc.
-/apps/ @ciscocpa/dev-team
-/apps/** @ciscocpa/dev-team
+/tenant-a/apps/ @ciscocpa/dev-team
+/tenant-a/apps/** @ciscocpa/dev-team
+
+# =============================================================================
+# TENANT-B - BASE POLICIES - SECURITY TEAM ONLY
+# =============================================================================
+/tenant-b/policies/00-base/ @ciscocpa/security-team
+/tenant-b/policies/00-base/** @ciscocpa/security-team
+
+# =============================================================================
+# TENANT-B - EXTERNAL POLICIES - REQUIRES SECURITY APPROVAL
+# =============================================================================
+/tenant-b/policies/20-external/ @ciscocpa/security-team
+/tenant-b/policies/20-external/** @ciscocpa/security-team
+
+# =============================================================================
+# TENANT-B - INTERNAL POLICIES - DEV TEAM OWNS
+# =============================================================================
+/tenant-b/policies/10-internal/ @ciscocpa/dev-team
+/tenant-b/policies/10-internal/** @ciscocpa/dev-team
+
+# =============================================================================
+# TENANT-B - APPLICATION MANIFESTS - DEV TEAM OWNS
+# =============================================================================
+/tenant-b/apps/ @ciscocpa/dev-team
+/tenant-b/apps/** @ciscocpa/dev-team
+
+# =============================================================================
+# ARGOCD APPLICATIONS - REQUIRE BOTH TEAMS
+# =============================================================================
+/argocd/applications/ @ciscocpa/dev-team @ciscocpa/security-team
+/argocd/applications/** @ciscocpa/dev-team @ciscocpa/security-team
 
 # =============================================================================
 # WORKFLOW CHANGES - REQUIRE BOTH TEAMS
