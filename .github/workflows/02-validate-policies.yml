@@ -142,14 +142,14 @@ jobs:
           if grep -r "0.0.0.0/0" tenant-a/policies/20-external/ tenant-b/policies/20-external/ 2>/dev/null; then
             echo "⚠️ Found unrestricted CIDR (0.0.0.0/0) in external policies" >> $GITHUB_STEP_SUMMARY
             echo "   This requires security team review" >> $GITHUB_STEP_SUMMARY
-            ((WARNINGS++))
+            WARNINGS=$((WARNINGS + 1))
           fi
 
           # Check for overly broad port ranges
           if grep -rE "port:.**" tenant-a/policies/ tenant-b/policies/ 2>/dev/null; then
             echo "⚠️ Found wildcard port (*) in policies" >> $GITHUB_STEP_SUMMARY
             echo "   Consider specifying exact ports" >> $GITHUB_STEP_SUMMARY
-            ((WARNINGS++))
+            WARNINGS=$((WARNINGS + 1))
           fi
 
           if [ $WARNINGS -eq 0 ]; then
