@@ -1,0 +1,130 @@
+name: Policy Access Control
+
+on:
+  pull_request:
+    paths:
+      - 'tenant-*/policies/**'
+      - '.github/workflows/policy-access-control.yml'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  check-access:
+    name: Policy Access Control
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check policy access
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+
+            // Security team members
+            const securityTeam = ['pantunez'];
+            const prAuthor = pr.data.user.login;
+            const isSecurityTeam = securityTeam.includes(prAuthor);
+
+            // Get changed files
+            const files = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+
+            const changedFiles = files.data.map(f => f.filename);
+
+            // Check for base policy changes
+            const baseChanges = changedFiles.filter(f => f.match(/^tenant-[^/]+\/policies\/00-base\//));
+            const externalChanges = changedFiles.filter(f => f.match(/^tenant-[^/]+\/policies\/20-external\//));
+
+            console.log(`PR Author: ${prAuthor}`);
+            console.log(`Is Security Team: ${isSecurityTeam}`);
+            console.log(`Base changes: ${baseChanges.length}`);
+            console.log(`External changes: ${externalChanges.length}`);
+
+            // Rule 1: Block base policy changes for non-security team
+            if (baseChanges.length > 0 && !isSecurityTeam) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: `## 🔒 Base Policy Changes - BLOCKED
+
+**You are not authorized to modify base policies.**
+
+Base policies (\`policies/00-base/\`) can only be changed by the security team.
+
+### What to do:
+1. ❌ Revert changes to base policies
+2. 📞 Contact security team (@ciscocpa/security-team) if you need base policy changes
+
+**Changed files:**
+${baseChanges.map(f => `- \`${f}\``).join('\n')}`
+              });
+              core.setFailed('❌ Base policy changes blocked - security team only');
+              return;
+            }
+
+            // Rule 2: Require security approval for external policy changes
+            if (externalChanges.length > 0 && !isSecurityTeam) {
+              const reviews = await github.rest.pulls.listReviews({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.issue.number
+              });
+
+              const securityApproval = reviews.data.find(review =>
+                securityTeam.includes(review.user.login) &&
+                review.state === 'APPROVED'
+              );
+
+              if (!securityApproval) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  body: `## 🌐 External Policy Changes - Security Review Required
+
+**This PR requires security team approval.**
+
+External policies (\`policies/20-external/\`) define connections to external services and require security review.
+
+### Changed files:
+${externalChanges.map(f => `- \`${f}\``).join('\n')}
+
+### Next steps:
+1. 📝 Add description of what external services you're connecting to
+2. ⏳ Wait for security team (@ciscocpa/security-team) to review and approve
+3. ✅ Once approved, you can merge
+
+cc: @ciscocpa/security-team`
+                });
+                core.setFailed('⏳ Waiting for security team approval');
+                return;
+              } else {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  body: `## ✅ Security Team Approved
+
+**Approved by:** @${securityApproval.user.login}
+
+You can now merge this PR.`
+                });
+              }
+            }
+
+            // Rule 3: Everything else is allowed (apps, internal policies, security team changes)
+            core.info('✅ Access check passed');

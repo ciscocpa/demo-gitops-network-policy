@@ -1,73 +1,18 @@
-# CODEOWNERS - Define who must review/approve changes
-# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+# CODEOWNERS
+# Documentation of policy ownership (enforcement handled by workflows)
 
-# =============================================================================
-# DEFAULT OWNERS
-# =============================================================================
-# By default, dev team can change everything
-* @ciscocpa/dev-team
+# Base policies - Security team only (enforced by workflow)
+/tenant-*/policies/00-base/ @ciscocpa/security-team
+/tenant-*/policies/00-base/** @ciscocpa/security-team
 
-# =============================================================================
-# TENANT-A - BASE POLICIES - SECURITY TEAM ONLY
-# =============================================================================
-/tenant-a/policies/00-base/ @ciscocpa/security-team
-/tenant-a/policies/00-base/** @ciscocpa/security-team
+# External policies - Security review required (enforced by workflow)
+/tenant-*/policies/20-external/ @ciscocpa/security-team
+/tenant-*/policies/20-external/** @ciscocpa/security-team
 
-# =============================================================================
-# TENANT-A - EXTERNAL POLICIES - REQUIRES SECURITY APPROVAL
-# =============================================================================
-/tenant-a/policies/20-external/ @ciscocpa/security-team
-/tenant-a/policies/20-external/** @ciscocpa/security-team
+# Internal policies - Dev team (no restrictions)
+/tenant-*/policies/10-internal/ @ciscocpa/dev-team
+/tenant-*/policies/10-internal/** @ciscocpa/dev-team
 
-# =============================================================================
-# TENANT-A - INTERNAL POLICIES - DEV TEAM OWNS
-# =============================================================================
-/tenant-a/policies/10-internal/ @ciscocpa/dev-team
-/tenant-a/policies/10-internal/** @ciscocpa/dev-team
-
-# =============================================================================
-# TENANT-A - APPLICATION MANIFESTS - DEV TEAM OWNS
-# =============================================================================
-/tenant-a/apps/ @ciscocpa/dev-team
-/tenant-a/apps/** @ciscocpa/dev-team
-
-# =============================================================================
-# TENANT-B - BASE POLICIES - SECURITY TEAM ONLY
-# =============================================================================
-/tenant-b/policies/00-base/ @ciscocpa/security-team
-/tenant-b/policies/00-base/** @ciscocpa/security-team
-
-# =============================================================================
-# TENANT-B - EXTERNAL POLICIES - REQUIRES SECURITY APPROVAL
-# =============================================================================
-/tenant-b/policies/20-external/ @ciscocpa/security-team
-/tenant-b/policies/20-external/** @ciscocpa/security-team
-
-# =============================================================================
-# TENANT-B - INTERNAL POLICIES - DEV TEAM OWNS
-# =============================================================================
-/tenant-b/policies/10-internal/ @ciscocpa/dev-team
-/tenant-b/policies/10-internal/** @ciscocpa/dev-team
-
-# =============================================================================
-# TENANT-B - APPLICATION MANIFESTS - DEV TEAM OWNS
-# =============================================================================
-/tenant-b/apps/ @ciscocpa/dev-team
-/tenant-b/apps/** @ciscocpa/dev-team
-
-# =============================================================================
-# ARGOCD APPLICATIONS - REQUIRE BOTH TEAMS
-# =============================================================================
-/argocd/applications/ @ciscocpa/dev-team @ciscocpa/security-team
-/argocd/applications/** @ciscocpa/dev-team @ciscocpa/security-team
-
-# =============================================================================
-# WORKFLOW CHANGES - REQUIRE BOTH TEAMS
-# =============================================================================
-# Changes to GitHub Actions workflows affect security controls,
-# so both teams should review
-/.github/workflows/ @ciscocpa/dev-team @ciscocpa/security-team
-/.github/workflows/** @ciscocpa/dev-team @ciscocpa/security-team
-
-# This file itself requires security team approval
-/.github/CODEOWNERS @ciscocpa/security-team
+# Application manifests - Dev team (no restrictions)
+/tenant-*/apps/ @ciscocpa/dev-team
+/tenant-*/apps/** @ciscocpa/dev-team
