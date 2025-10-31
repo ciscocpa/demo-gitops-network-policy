@@ -34,11 +34,12 @@ jobs:
 
           for file in $(find tenant-a/apps tenant-b/apps -name "*.yaml" -o -name "*.yml" 2>/dev/null || true); do
             echo "Validating: $file"
-            if yq eval '.' "$file" > /dev/null 2>&1; then
+            if ERROR=$(yq eval '.' "$file" 2>&1 > /dev/null); then
               echo "✅ $file" >> $GITHUB_STEP_SUMMARY
               ((VALID++))
             else
-              echo "❌ $file - INVALID YAML" >> $GITHUB_STEP_SUMMARY
+              echo "❌ $file - INVALID YAML: $ERROR" >> $GITHUB_STEP_SUMMARY
+              echo "Error for $file: $ERROR"
               ((INVALID++))
             fi
           done
