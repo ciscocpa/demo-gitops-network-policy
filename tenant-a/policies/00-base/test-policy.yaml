@@ -1,0 +1,10 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: test-base-policy
+  namespace: tenant-a
+spec:
+  description: "Test base policy - should be blocked"
+  endpointSelector:
+    matchLabels:
+      app: test
