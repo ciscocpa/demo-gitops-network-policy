@@ -1,11 +1,7 @@
 name: Policy Access Control
 
 on:
-  pull_request:
-    paths:
-      - 'tenant-a/policies/**'
-      - 'tenant-b/policies/**'
-      - '.github/workflows/policy-access-control.yml'
+  pull_request
 
 permissions:
   contents: read
