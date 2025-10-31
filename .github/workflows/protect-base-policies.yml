@@ -1,0 +1,81 @@
+name: Protect Base Policies
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'tenant-*/policies/**'
+
+jobs:
+  check-base-policies:
+    name: Prevent Base Policy Modifications
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for base policy changes
+        id: check_base
+        run: |
+          echo "Checking for changes in tenant-*/policies/00-base/ directories..."
+
+          # Get the list of changed files
+          git fetch origin main
+          CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
+
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+
+          # Check if any files in 00-base directories were modified
+          BASE_CHANGES=$(echo "$CHANGED_FILES" | grep -E '^tenant-[^/]+/policies/00-base/' || true)
+
+          if [ -n "$BASE_CHANGES" ]; then
+            echo "❌ ERROR: Changes detected in protected base policy directories!"
+            echo ""
+            echo "The following base policy files were modified:"
+            echo "$BASE_CHANGES"
+            echo ""
+            echo "Base policies (tenant-*/policies/00-base/) are protected and can only be modified by the security team."
+            echo "Please remove these changes from your PR."
+            echo ""
+            echo "Allowed modifications:"
+            echo "  ✅ tenant-*/policies/10-internal/ - Internal namespace policies"
+            echo "  ✅ tenant-*/policies/20-external/ - External connections (requires approval)"
+            echo "  ✅ tenant-*/apps/ - Application deployments"
+            exit 1
+          else
+            echo "✅ No changes to base policies detected. Check passed!"
+          fi
+
+      - name: Comment on PR if base policies modified
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue_number = context.issue.number;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue_number,
+              body: `## 🚫 Base Policy Protection Failed
+
+            **Changes to base policies are not allowed!**
+
+            Base policies (\`tenant-*/policies/00-base/\`) are managed exclusively by the security team and cannot be modified through pull requests.
+
+            ### What you can do:
+
+            ✅ **Remove the base policy changes** from your PR
+
+            ✅ **Modify internal policies** instead: \`tenant-*/policies/10-internal/\`
+
+            ✅ **Request external connections** (with approval): \`tenant-*/policies/20-external/\`
+
+            ### Need to modify base policies?
+
+            Contact the security team (@ciscocpa/security-team) if you believe base policy changes are necessary.`
+            });
