@@ -75,7 +75,12 @@ jobs:
 
           for file in $(find tenant-a/policies tenant-b/policies -name "*.yaml" -o -name "*.yml" 2>/dev/null); do
             echo "Validating: $file"
-            if ERROR=$(yq eval '.' "$file" 2>&1 > /dev/null); then
+            set +e  # Temporarily allow errors
+            ERROR=$(yq eval '.' "$file" 2>&1 > /dev/null)
+            EXIT_CODE=$?
+            set -e  # Re-enable exit on error
+
+            if [ $EXIT_CODE -eq 0 ]; then
               echo "✅ $file" >> $GITHUB_STEP_SUMMARY
               ((VALID++))
             else
