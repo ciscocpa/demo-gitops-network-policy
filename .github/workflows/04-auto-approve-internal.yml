@@ -3,8 +3,10 @@ name: Auto-Approve Internal Changes
 on:
   pull_request:
     paths:
-      - 'policies/10-internal/**'
-      - 'apps/**'
+      - 'tenant-a/policies/10-internal/**'
+      - 'tenant-a/apps/**'
+      - 'tenant-b/policies/10-internal/**'
+      - 'tenant-b/apps/**'
       - '.github/workflows/04-auto-approve-internal.yml'
 
 permissions:
@@ -35,7 +37,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # Check if any base or external files changed
-          if echo "$CHANGED_FILES" | grep -qE "^policies/(00-base|20-external)/"; then
+          if echo "$CHANGED_FILES" | grep -qE "^tenant-[ab]/policies/(00-base|20-external)/"; then
             echo "only_internal=false" >> $GITHUB_OUTPUT
             echo "❌ Contains base or external policy changes - manual security review required" >> $GITHUB_STEP_SUMMARY
           else

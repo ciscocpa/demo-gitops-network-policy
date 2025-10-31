@@ -3,7 +3,8 @@ name: Validate Network Policies
 on:
   pull_request:
     paths:
-      - 'policies/**'
+      - 'tenant-a/policies/**'
+      - 'tenant-b/policies/**'
       - '.github/workflows/02-validate-policies.yml'
 
 permissions:
@@ -36,7 +37,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # Check if base policies were modified
-          if echo "$CHANGED_FILES" | grep -q "^policies/00-base/"; then
+          if echo "$CHANGED_FILES" | grep -q "^tenant-[ab]/policies/00-base/"; then
             echo "❌ **ERROR: Base policies cannot be modified by developers!**" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "Base policies include:" >> $GITHUB_STEP_SUMMARY
@@ -72,7 +73,7 @@ jobs:
           VALID=0
           INVALID=0
 
-          for file in $(find policies -name "*.yaml" -o -name "*.yml" 2>/dev/null); do
+          for file in $(find tenant-a/policies tenant-b/policies -name "*.yaml" -o -name "*.yml" 2>/dev/null); do
             echo "Validating: $file"
             if yq eval '.' "$file" > /dev/null 2>&1; then
               echo "✅ $file" >> $GITHUB_STEP_SUMMARY
@@ -96,7 +97,7 @@ jobs:
           echo "## Cilium Policy Structure Check" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          for file in $(find policies -name "*.yaml" -o -name "*.yml" 2>/dev/null); do
+          for file in $(find tenant-a/policies tenant-b/policies -name "*.yaml" -o -name "*.yml" 2>/dev/null); do
             # Check if it's a CiliumNetworkPolicy
             if grep -q "kind: CiliumNetworkPolicy\|kind: CiliumClusterwideNetworkPolicy" "$file"; then
               echo "Checking: $file"
@@ -132,14 +133,14 @@ jobs:
           WARNINGS=0
 
           # Check for unrestricted CIDR in external policies
-          if grep -r "0.0.0.0/0" policies/20-external/ 2>/dev/null; then
+          if grep -r "0.0.0.0/0" tenant-a/policies/20-external/ tenant-b/policies/20-external/ 2>/dev/null; then
             echo "⚠️ Found unrestricted CIDR (0.0.0.0/0) in external policies" >> $GITHUB_STEP_SUMMARY
             echo "   This requires security team review" >> $GITHUB_STEP_SUMMARY
             ((WARNINGS++))
           fi
 
           # Check for overly broad port ranges
-          if grep -rE "port:.*\*" policies/ 2>/dev/null; then
+          if grep -rE "port:.**" tenant-a/policies/ tenant-b/policies/ 2>/dev/null; then
             echo "⚠️ Found wildcard port (*) in policies" >> $GITHUB_STEP_SUMMARY
             echo "   Consider specifying exact ports" >> $GITHUB_STEP_SUMMARY
             ((WARNINGS++))
@@ -171,15 +172,15 @@ jobs:
           HAS_EXTERNAL=false
           HAS_BASE=false
 
-          if echo "$CHANGED_FILES" | grep -q "^policies/10-internal/"; then
+          if echo "$CHANGED_FILES" | grep -q "^tenant-[ab]/policies/10-internal/"; then
             HAS_INTERNAL=true
           fi
 
-          if echo "$CHANGED_FILES" | grep -q "^policies/20-external/"; then
+          if echo "$CHANGED_FILES" | grep -q "^tenant-[ab]/policies/20-external/"; then
             HAS_EXTERNAL=true
           fi
 
-          if echo "$CHANGED_FILES" | grep -q "^policies/00-base/"; then
+          if echo "$CHANGED_FILES" | grep -q "^tenant-[ab]/policies/00-base/"; then
             HAS_BASE=true
           fi
 

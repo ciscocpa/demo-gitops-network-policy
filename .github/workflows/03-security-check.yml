@@ -3,8 +3,10 @@ name: Security Review Required
 on:
   pull_request:
     paths:
-      - 'policies/00-base/**'
-      - 'policies/20-external/**'
+      - 'tenant-a/policies/00-base/**'
+      - 'tenant-a/policies/20-external/**'
+      - 'tenant-b/policies/00-base/**'
+      - 'tenant-b/policies/20-external/**'
       - '.github/workflows/03-security-check.yml'
 
 permissions:
@@ -33,10 +35,10 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # Categorize changes
-          if echo "$CHANGED_FILES" | grep -q "^policies/00-base/"; then
+          if echo "$CHANGED_FILES" | grep -q "^tenant-[ab]/policies/00-base/"; then
             echo "change_type=base" >> $GITHUB_OUTPUT
             echo "**Type:** Base Policy Changes (🔒 Critical)" >> $GITHUB_STEP_SUMMARY
-          elif echo "$CHANGED_FILES" | grep -q "^policies/20-external/"; then
+          elif echo "$CHANGED_FILES" | grep -q "^tenant-[ab]/policies/20-external/"; then
             echo "change_type=external" >> $GITHUB_OUTPUT
             echo "**Type:** External Policy Changes (🌐 Requires Review)" >> $GITHUB_STEP_SUMMARY
           fi
