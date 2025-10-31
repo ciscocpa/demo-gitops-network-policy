@@ -82,11 +82,11 @@ jobs:
 
             if [ $EXIT_CODE -eq 0 ]; then
               echo "✅ $file" >> $GITHUB_STEP_SUMMARY
-              ((VALID++))
+              VALID=$((VALID + 1))
             else
               echo "❌ $file - INVALID YAML: $ERROR" >> $GITHUB_STEP_SUMMARY
               echo "Error for $file: $ERROR"
-              ((INVALID++))
+              INVALID=$((INVALID + 1))
             fi
           done
 
