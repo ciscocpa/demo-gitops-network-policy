@@ -11,6 +11,10 @@ jobs:
   check-base-policies:
     name: Prevent Base Policy Modifications
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
+      contents: read
 
     steps:
       - name: Checkout code
