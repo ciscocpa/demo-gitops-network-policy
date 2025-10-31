@@ -1,0 +1,18 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: test-internal-policy
+  namespace: tenant-a
+spec:
+  description: "Test internal policy - should pass check"
+  endpointSelector:
+    matchLabels:
+      app: frontend
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            app: backend
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
